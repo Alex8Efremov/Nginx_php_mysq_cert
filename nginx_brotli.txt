@@ -1,0 +1,153 @@
+# For Ubuntu 16-18
+1. создаем пользователя
+
+
+2. sudo apt update && sudo apt upgrade -y
+3. sudo apt install ufw
+4. sudo apt-add-repository -y ppa:hda-me/nginx-stable
+5. sudo apt-get install brotli nginx nginx-module-brotli
+6. sudo systemctl unmask nginx.service
+7. sudo nano /etc/nginx/nginx.conf
+    РАСКОММЕНТИРОВАТЬ:
+    ## ngx_brotli filter module - used to compress responses on-the-fly.
+    load_module modules/ngx_http_brotli_filter_module.so;
+    ## ngx_brotli static module - used to serve pre-compressed files.
+    ## Both ngx_brotli modules could be used separately, but part of nginx-module-brotli package
+    load_module modules/ngx_http_brotli_static_module.so;
+
+      brotli on;
+      brotli_comp_level 6;
+
+      brotli_types
+        text/xml
+        image/svg+xml
+        application/x-font-ttf
+        image/vnd.microsoft.icon
+        application/x-font-opentype
+        application/json
+        font/eot
+        application/vnd.ms-fontobject
+        application/javascript
+        font/otf
+        application/xml
+        application/xhtml+xml
+        text/javascript
+        application/x-javascript
+        text/$;
+8. sudo ufw app list
+9. Create:
+    sudo nano /etc/ufw/applications.d/nginx.ini
+    and write the following:
+
+[Nginx HTTP]
+title=Web HTTP
+description=Enable nginx HTTP traffic
+ports=80/tcp
+
+[Nginx HTTPS] \
+title=Web HTTPS \
+description=Enable nginx HTTPS traffic
+ports=443/tcp
+
+[Nginx Full]
+title=Web (HTTP,HTTPS)
+description=Enable nginx HTTP and HTTPS traffic
+ports=80,443/tcp
+10. sudo ufw enable
+11. sudo ufw allow 'OpenSSH' && sudo ufw allow 'Nginx Full' && sudo ufw status
+12. install soft bot с ппровайдером бесплатных сертификатов для сайтов
+    sudo apt-get install software-properties-common
+    sudo add-apt-repository ppa:certbot/certbot
+    sudo apt-get update
+
+    sudo apt-get install python-certbot-nginx
+
+13. sudo openssl dhparam -out /etc/ssl/certs/dhparam.pem 2048
+14. папка для снипетов
+    sudo mkdir -p /etc/nginx/snippets/ && sudo nano /etc/nginx/snippets/ssl-params.conf
+    Туда вставляем настройки безопасного подключения:
+ssl_session_timeout 1d;
+ssl_session_cache shared:SSL:10m;
+ssl_session_tickets off;
+
+ssl_dhparam /etc/ssl/certs/dhparam.pem;
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+ssl_prefer_server_ciphers off;
+
+add_header Strict-Transport-Security "max-age=63072000" always;
+
+15. Хранение сайта
+    sudo mkdir -p /var/www/example.com/html
+    sudo chown -R $USER:$USER /var/www/
+16. Create the config of site
+    sudo nano /etc/nginx/sites-available/example.com.conf
+
+    server {
+          listen 80;
+          listen [::]:80;
+
+          server_name example.com www.example.com;
+          root /var/www/example.com/html;
+          index index.html index.xml;
+    }
+
+    test: sudo nginx -t
+    16.1 Create simlinc:
+        sudo ln -s /etc/nginx/sites-available/example.com.conf /etc/nginx/sites-enabled/
+        check: sudo nginx -t
+        restart: sudo systemctl restart nginx
+    16.2 create the simple page
+cat <<EOF >/var/www/example.com/html/index.html
+<!DOCTYPE html>
+<title>Title</title>
+<h1><center>Hello World!</h1>
+EOF
+
+17. Create a certificate
+    sudo certbot --nginx certonly
+    нужно ввести email для оповещений
+    выбираем в конце 1 2 для обоих доменов один сертификат
+    сертификат будет в:
+    /etc/letsencrypt/live/example.com/fullchain.pem
+18. Change config for HTTPS conection!
+sudo nano /etc/nginx/sites-available/example.com.conf
+
+    server {
+        listen 80;
+        listen [::]:80;
+
+        server_name example.com www.example.com;
+        return 301 https://example.com$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+
+        server_name www.example.com;
+        return 301 https://example.com$request_uri;
+
+        ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+        ssl_trusted_certificate /etc/letsencrypt/live/example.com/chain.pem;
+
+        include snippets/ssl-params.conf;
+    }
+
+    server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+
+        server_name example.com;
+        root /var/www/example.com/html;
+        index index.html index.xml;
+
+        ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+        ssl_trusted_certificate /etc/letsencrypt/live/example.com/chain.pem;
+
+        include snippets/ssl-params.conf;
+    }
+restart: sudo systemctl restart nginx

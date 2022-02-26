@@ -1,0 +1,164 @@
+# For Debian 9+
+1. создаем пользователя
+2. sudo apt update && sudo apt upgrade -y
+3. sudo apt install ufw -y
+5. sudo apt-get install nginx -y
+7. sudo nano /etc/nginx/nginx.conf
+    РАСКОММЕНТИРОВАТЬ:
+    Gzip Settings
+8. sudo ufw app list
+9. Create: (if not)
+    sudo nano /etc/ufw/applications.d/nginx.ini
+    and write the following:
+
+[Nginx HTTP]
+title=Web HTTP
+description=Enable nginx HTTP traffic
+ports=80/tcp
+
+[Nginx HTTPS] \
+title=Web HTTPS \
+description=Enable nginx HTTPS traffic
+ports=443/tcp
+
+[Nginx Full]
+title=Web (HTTP,HTTPS)
+description=Enable nginx HTTP and HTTPS traffic
+ports=80,443/tcp
+10. sudo ufw enable
+11. sudo ufw allow 'OpenSSH' && sudo ufw allow 'Nginx Full' && sudo ufw status
+12. install soft bot с ппровайдером бесплатных сертификатов для сайтов
+    sudo apt-get install software-properties-common -y
+    sudo add-apt-repository ppa:certbot/certbot
+    sudo apt-get update
+
+    sudo apt-get install python-certbot-nginx -y
+
+13. sudo openssl dhparam -out /etc/ssl/certs/dhparam.pem 2048
+14. папка для снипетов
+    sudo mkdir -p /etc/nginx/snippets/ && sudo nano /etc/nginx/snippets/ssl-params.conf
+    Туда вставляем настройки безопасного подключения:
+ssl_session_timeout 1d;
+ssl_session_cache shared:SSL:10m;
+ssl_session_tickets off;
+
+ssl_dhparam /etc/ssl/certs/dhparam.pem;
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+ssl_prefer_server_ciphers off;
+
+add_header Strict-Transport-Security "max-age=63072000" always;
+
+00. sudo apt install php-fpm php-mysql -y
+15. Хранение сайта
+    sudo mkdir -p /var/www/example.com/html
+    sudo mkdir -p /var/www/example.com/logs
+    sudo chown -R $USER:$USER /var/www/
+16. Create the config of site
+    sudo nano /etc/nginx/sites-available/example.com.conf
+
+    server {
+        listen 80;
+        listen [::]:80;
+
+        root $root_path;
+        set $root_path /var/www/example.com/html;
+        set $php_sock unix:/var/run/php/php7.3-fpm.sock;
+        index index.php index.html index.htm;
+
+        server_name example.com www.example.com;
+
+        access_log /var/www/example.com/logs/access.log;
+        error_log /var/www/example.com/logs/error.log;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass $php_sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        }
+    }
+
+    test: sudo nginx -t
+    16.1 Create simlinc:
+        sudo ln -s /etc/nginx/sites-available/example.com.site.conf /etc/nginx/sites-enabled/
+        check: sudo nginx -t
+        restart: sudo systemctl restart nginx
+    16.2 create the simple page
+cat <<EOF >/var/www/example.com/html/info.php
+<!DOCTYPE html>
+<title>Title</title>
+<h1><center>Hello World!</h1>
+<?php
+  phpinfo();
+?>
+EOF
+
+17. Create certificat
+    sudo certbot --nginx certonly
+    нужно ввести email для оповещений
+    выбираем в конце 1 2 для обоих доменов один сертификат
+    сертификат будет в:
+    /etc/letsencrypt/live/example.com/fullchain.pem
+18. Change config for HTTPS conection!
+sudo nano /etc/nginx/sites-available/example.com.conf
+
+server {
+        listen 80;
+        listen [::]:80;
+
+        server_name example.com www.example.com;
+        return 301 https://example.com$request_uri;
+    }
+
+server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+
+        server_name www.example.com;
+        return 301 https://example.com$request_uri;
+
+        ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+        ssl_trusted_certificate /etc/letsencrypt/live/example.com/chain.pem;
+
+        include snippets/ssl-params.conf;
+    }
+
+server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+
+        root $root_path;
+        set $root_path /var/www/example.com/html;
+        set $php_sock unix:/var/run/php/php7.3-fpm.sock;
+        index index.php index.html index.htm;
+
+        server_name example.com www.example.com;
+
+        access_log /var/www/example.com/logs/access.log;
+        error_log /var/www/example.com/logs/error.log;
+
+        ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+        ssl_trusted_certificate /etc/letsencrypt/live/example.com/chain.pem;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass $php_sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        }
+
+      #  include snippets/ssl-params.conf;
+    }
+restart: sudo systemctl restart nginx
+
+sudo apt install mysql-server
