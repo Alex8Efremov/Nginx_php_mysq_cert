@@ -1,6 +1,6 @@
 # Nginx_php_mysq_cert
 
-## sert/nginx/cert_update.sh даем права исполнения chmod +x ...
+# даем права исполнения chmod +x sert/nginx/cert_update.sh.
 
 ## В файлах заменяем example.com на свой домен.
 
