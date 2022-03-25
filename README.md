@@ -1,4 +1,4 @@
-# Nginx_php_mysq_cert
+# Nginx_php_mysq_cert Debian 9+
 
 ## Даем права исполнения chmod +x sert/nginx/cert_update.sh.
 
