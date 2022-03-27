@@ -26,24 +26,30 @@ add_header Strict-Transport-Security "max-age=63072000" always;
 
 EOF
 sudo apt install php-fpm php-mysql -y
-sudo mkdir -p /var/www/example.com/html
-sudo mkdir -p /var/www/example.com/logs
+echo -n -e "Enter your domain name\nEnter: example.com\n ---> "
+read domain
+if [[ -z $domain ]]
+then domain="example.com"
+fi
+
+sudo mkdir -p /var/www/$domain/html
+sudo mkdir -p /var/www/$domain/logs
 sudo chown -R $USER:$USER /var/www/
 
-sudo cat <<EOF >/etc/nginx/sites-available/example.com.conf
+sudo cat <<EOF >/etc/nginx/sites-available/$domain.conf
 server {
         listen 80;
         listen [::]:80;
 
         root \$root_path;
-        set \$root_path /var/www/example.com/html;
+        set \$root_path /var/www/$domain/html;
         set \$php_sock unix:/var/run/php/php7.3-fpm.sock;
         index index.php index.html index.htm;
 
-        server_name example.com www.example.com;
+        server_name $domain www.$domain;
 
-        access_log /var/www/example.com/logs/access.log;
-        error_log /var/www/example.com/logs/error.log;
+        access_log /var/www/$domain/logs/access.log;
+        error_log /var/www/$domain/logs/error.log;
 
         location / {
             try_files \$uri \$uri/ =404;
@@ -57,12 +63,12 @@ server {
     }
 EOF
 sudo nginx -t
-sudo ln -s /etc/nginx/sites-available/example.com.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/$domain.conf /etc/nginx/sites-enabled/
 sudo nginx -t
 
 sudo systemctl restart nginx
 
-sudo cat <<EOF >/var/www/example.com/html/index.php
+sudo cat <<EOF >/var/www/$domain/html/index.php
 <!DOCTYPE html>
 <title>Title</title>
 <h1><center>Hello World!</h1>
