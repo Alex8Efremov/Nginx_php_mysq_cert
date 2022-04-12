@@ -68,13 +68,13 @@ sudo nginx -t
 
 sudo systemctl restart nginx
 
-sudo cat <<EOF >/var/www/$domain/html/index.php
+sudo cat <<EOF >/var/www/$domain/html/index.html
 <!DOCTYPE html>
 <title>Title</title>
 <h1><center>Hello World!</h1>
-<?php
-  phpinfo();
-?>
+#<?php
+#  phpinfo();
+#?>
 </html>
 EOF
 
